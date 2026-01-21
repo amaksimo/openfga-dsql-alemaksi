@@ -333,11 +333,11 @@ func (s *Datastore) Write(
 ) error {
 	ctx, span := startTrace(ctx, "Write")
 	defer span.End()
-	writeOpts, now := storage.NewTupleWriteOptions(opts...), time.Now().UTC()
+	writeOpts := storage.NewTupleWriteOptions(opts...)
 	if s.isDSQL {
-		return withOCCRetry(func() error { return s.write(ctx, store, deletes, writes, writeOpts, now) })
+		return withOCCRetry(func() error { return s.write(ctx, store, deletes, writes, writeOpts, time.Now().UTC()) })
 	}
-	return s.write(ctx, store, deletes, writes, writeOpts, now)
+	return s.write(ctx, store, deletes, writes, writeOpts, time.Now().UTC())
 }
 
 // selectAllExistingRowsForUpdate executes SELECT … FOR UPDATE for all lockKeys.

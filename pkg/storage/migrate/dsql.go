@@ -1,16 +1,13 @@
 package migrate
 
 import (
-	"context"
 	"fmt"
-	"net/url"
-	"strings"
 
-	"github.com/aws-samples/aurora-dsql-samples/go/dsql-pgx-connector/dsql"
 	"github.com/pressly/goose/v3"
 
 	"github.com/openfga/openfga/assets"
 	"github.com/openfga/openfga/pkg/logger"
+	"github.com/openfga/openfga/pkg/storage/postgres"
 )
 
 // dsqlMigrationConfig holds DSQL-specific migration configuration.
@@ -23,37 +20,12 @@ type dsqlMigrationConfig struct {
 // prepareDSQLMigration prepares the migration configuration for DSQL.
 // It generates an IAM auth token and sets up the goose version table.
 func prepareDSQLMigration(uri string, log logger.Logger) (*dsqlMigrationConfig, error) {
-	ctx := context.Background()
-
-	// Generate IAM auth token
-	token, err := dsql.GenerateTokenConnString(ctx, uri)
+	pgURI, err := postgres.PrepareDSQLURI(uri)
 	if err != nil {
-		return nil, fmt.Errorf("generate DSQL auth token: %w", err)
+		return nil, fmt.Errorf("prepare DSQL URI: %w", err)
 	}
 
-	// Convert dsql:// to postgres:// with token as password
-	pgURI := "postgres" + strings.TrimPrefix(uri, "dsql")
-	dbURI, err := url.Parse(pgURI)
-	if err != nil {
-		return nil, fmt.Errorf("parse database URI: %w", err)
-	}
-
-	username := "admin"
-	if dbURI.User != nil {
-		username = dbURI.User.Username()
-	}
-	dbURI.User = url.UserPassword(username, token)
-
-	// DSQL requires SSL; remove region param which PostgreSQL doesn't understand
-	q := dbURI.Query()
-	q.Set("sslmode", "require")
-	q.Del("region")
-	dbURI.RawQuery = q.Encode()
-
-	finalURI := dbURI.String()
-
-	// Pre-create goose table (DSQL doesn't support SERIAL/IDENTITY)
-	if err := ensureGooseTableForDSQL(finalURI, log); err != nil {
+	if err := ensureGooseTableForDSQL(pgURI, log); err != nil {
 		return nil, fmt.Errorf("create goose version table: %w", err)
 	}
 
@@ -62,7 +34,7 @@ func prepareDSQLMigration(uri string, log logger.Logger) (*dsqlMigrationConfig, 
 	return &dsqlMigrationConfig{
 		driver:         "pgx",
 		migrationsPath: assets.DSQLMigrationDir,
-		uri:            finalURI,
+		uri:            pgURI,
 	}, nil
 }
 

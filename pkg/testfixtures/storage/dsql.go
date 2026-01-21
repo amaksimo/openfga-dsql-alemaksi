@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -12,8 +11,8 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openfga/openfga/assets"
 	"github.com/openfga/openfga/pkg/storage/migrate"
+	"github.com/openfga/openfga/pkg/storage/postgres"
 )
 
 // dsqlTestContainer implements DatastoreTestContainer for Aurora DSQL.
@@ -69,8 +68,26 @@ func (d *dsqlTestContainer) RunDSQLTestContainer(t testing.TB) DatastoreTestCont
 	d.version = d.getSchemaVersion(t)
 
 	t.Cleanup(func() {
-		// Optionally clean up test data here
-		// For now, we leave the schema in place for subsequent test runs
+		pgURI, err := postgres.PrepareDSQLURI(d.GetConnectionURI(false))
+		if err != nil {
+			t.Logf("failed to prepare DSQL URI for cleanup: %v", err)
+			return
+		}
+
+		db, err := goose.OpenDBWithDriver("pgx", pgURI)
+		if err != nil {
+			t.Logf("failed to connect for cleanup: %v", err)
+			return
+		}
+		defer db.Close()
+
+		tables := []string{"changelog", "tuple", "assertion", "authorization_model", "store"}
+		for _, table := range tables {
+			if _, err := db.Exec("DELETE FROM " + table); err != nil {
+				t.Logf("failed to clean up table %s: %v", table, err)
+			}
+		}
+
 		t.Log("DSQL test cleanup complete")
 	})
 
@@ -78,37 +95,25 @@ func (d *dsqlTestContainer) RunDSQLTestContainer(t testing.TB) DatastoreTestCont
 }
 
 func (d *dsqlTestContainer) getSchemaVersion(t testing.TB) int64 {
-	// Connect using standard postgres driver with IAM token
-	ctx := context.Background()
-
-	// Generate connection string with IAM token
-	uri := d.GetConnectionURI(false)
-
-	// Use the migrate package's DSQL preparation to get a valid connection string
-	// For now, we'll just return a default version since migrations were successful
-	// The actual version check would require the IAM token generation
+	pgURI, err := postgres.PrepareDSQLURI(d.GetConnectionURI(false))
+	require.NoError(t, err, "failed to prepare DSQL URI")
 
 	goose.SetLogger(goose.NopLogger())
 
-	// Try to get version with retry (IAM token generation may take time)
+	db, err := goose.OpenDBWithDriver("pgx", pgURI)
+	require.NoError(t, err)
+	defer db.Close()
+
 	backoffPolicy := backoff.NewExponentialBackOff()
 	backoffPolicy.MaxElapsedTime = 30 * time.Second
 
-	var version int64 = 6 // Default to latest migration version
-
-	err := backoff.Retry(func() error {
-		// For DSQL, we trust that migrations ran successfully
-		// The version is determined by the number of migration files
-		return nil
+	var version int64
+	err = backoff.Retry(func() error {
+		var dbErr error
+		version, dbErr = goose.GetDBVersion(db)
+		return dbErr
 	}, backoffPolicy)
-
-	if err != nil {
-		t.Logf("Warning: could not verify schema version: %v", err)
-	}
-
-	_ = ctx
-	_ = uri
-	_ = assets.DSQLMigrationDir
+	require.NoError(t, err, "failed to get schema version")
 
 	return version
 }

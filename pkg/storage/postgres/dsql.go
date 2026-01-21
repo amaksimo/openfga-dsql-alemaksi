@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"strings"
 	"time"
 
@@ -36,6 +37,36 @@ func withOCCRetry(fn func() error) error {
 		time.Sleep(base + time.Duration(rand.Int63n(int64(base/2))))
 	}
 	return fmt.Errorf("OCC retry limit exceeded: %w", err)
+}
+
+// PrepareDSQLURI converts a dsql:// URI to a postgres:// URI with IAM authentication.
+// This is used by migrations and tests to connect via standard PostgreSQL drivers.
+func PrepareDSQLURI(uri string) (string, error) {
+	ctx := context.Background()
+
+	token, err := dsql.GenerateTokenConnString(ctx, uri)
+	if err != nil {
+		return "", fmt.Errorf("generate DSQL auth token: %w", err)
+	}
+
+	pgURI := "postgres" + strings.TrimPrefix(uri, "dsql")
+	dbURI, err := url.Parse(pgURI)
+	if err != nil {
+		return "", fmt.Errorf("parse database URI: %w", err)
+	}
+
+	username := "admin"
+	if dbURI.User != nil {
+		username = dbURI.User.Username()
+	}
+	dbURI.User = url.UserPassword(username, token)
+
+	q := dbURI.Query()
+	q.Set("sslmode", "require")
+	q.Del("region")
+	dbURI.RawQuery = q.Encode()
+
+	return dbURI.String(), nil
 }
 
 // initDSQLDB initializes a new Aurora DSQL database connection.
