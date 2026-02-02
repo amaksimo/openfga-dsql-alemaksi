@@ -52,8 +52,7 @@ func (d *dsqlTestContainer) RunDSQLTestContainer(t testing.TB) DatastoreTestCont
 	d.clusterEndpoint = clusterEndpoint
 	d.region = region
 
-	// Prepare the postgres URI with IAM token
-	pgURI, err := dsql.PreparePostgresURI(d.GetConnectionURI(false))
+	pgURI, err := dsql.PreparePostgresURI(d.GetConnectionURI(false), "")
 	require.NoError(t, err, "failed to prepare DSQL URI")
 
 	goose.SetLogger(goose.NopLogger())
@@ -79,7 +78,7 @@ func (d *dsqlTestContainer) RunDSQLTestContainer(t testing.TB) DatastoreTestCont
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		pgURI, err := dsql.PreparePostgresURI(d.GetConnectionURI(false))
+		pgURI, err := dsql.PreparePostgresURI(d.GetConnectionURI(false), "")
 		if err != nil {
 			t.Logf("failed to prepare DSQL URI for cleanup: %v", err)
 			return

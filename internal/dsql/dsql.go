@@ -12,8 +12,21 @@ import (
 )
 
 // PreparePostgresURI converts a dsql:// URI to a postgres:// URI with IAM authentication.
-func PreparePostgresURI(uri string) (string, error) {
-	token, err := dsql.GenerateTokenConnString(context.Background(), uri)
+// If username is provided, it overrides any username in the URI for token generation.
+func PreparePostgresURI(uri string, username string) (string, error) {
+	// Inject username into URI for token generation if provided.
+	tokenURI := uri
+	if username != "" {
+		pgURI := "postgres" + strings.TrimPrefix(uri, "dsql")
+		parsed, err := url.Parse(pgURI)
+		if err != nil {
+			return "", fmt.Errorf("parse URI for username override: %w", err)
+		}
+		parsed.User = url.User(username)
+		tokenURI = "dsql" + strings.TrimPrefix(parsed.String(), "postgres")
+	}
+
+	token, err := dsql.GenerateTokenConnString(context.Background(), tokenURI)
 	if err != nil {
 		return "", fmt.Errorf("generate DSQL auth token: %w", err)
 	}
@@ -24,11 +37,17 @@ func PreparePostgresURI(uri string) (string, error) {
 		return "", fmt.Errorf("parse database URI: %w", err)
 	}
 
-	username := "admin"
-	if dbURI.User != nil {
-		username = dbURI.User.Username()
+	// Determine final username: param > URI > default "admin"
+	finalUser := username
+	if finalUser == "" {
+		if dbURI.User != nil {
+			finalUser = dbURI.User.Username()
+		}
+		if finalUser == "" {
+			finalUser = "admin"
+		}
 	}
-	dbURI.User = url.UserPassword(username, token)
+	dbURI.User = url.UserPassword(finalUser, token)
 
 	q := dbURI.Query()
 	q.Set("sslmode", "require")
