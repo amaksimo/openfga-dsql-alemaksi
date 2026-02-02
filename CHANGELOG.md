@@ -18,6 +18,7 @@ Try to keep listed changes to a concise bulleted list of simple explanations of 
 - Removed custom grpc_prometheus fork, replace with go-grpc-middleware's provider. Removes the custom `grpc_code` label on this metric. [#2855](https://github.com/openfga/openfga/pull/2855)
 
 ### Fixed
+- DSQL connections now respect `OPENFGA_DATASTORE_USERNAME` for IAM token generation. [#12](https://github.com/amaksimo/openfga-dsql-alemaksi/pull/12)
 - ListUsers will now properly get datastore throttled if enabled. [#2846](https://github.com/openfga/openfga/pull/2846)
 - Cache controller now uses the logger provided to the server instead of always using a no-op logger. [#2847](https://github.com/openfga/openfga/pull/2847)
 - Typesystem invalidate model with empty intersection and union. [#2865](https://github.com/openfga/openfga/pull/2865)

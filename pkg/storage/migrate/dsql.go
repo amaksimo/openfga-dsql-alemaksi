@@ -18,8 +18,8 @@ type dsqlMigrationConfig struct {
 }
 
 // prepareDSQLMigration prepares the migration configuration for DSQL.
-func prepareDSQLMigration(uri string, log logger.Logger) (*dsqlMigrationConfig, error) {
-	pgURI, err := dsql.PreparePostgresURI(uri)
+func prepareDSQLMigration(uri string, username string, log logger.Logger) (*dsqlMigrationConfig, error) {
+	pgURI, err := dsql.PreparePostgresURI(uri, username)
 	if err != nil {
 		return nil, fmt.Errorf("prepare DSQL URI: %w", err)
 	}

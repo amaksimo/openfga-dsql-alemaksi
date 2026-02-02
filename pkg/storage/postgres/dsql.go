@@ -53,6 +53,11 @@ func initDSQLDB(uri string, cfg *sqlcommon.Config) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("parse DSQL URI: %w", err)
 	}
 
+	// Override username from config (DSQL uses IAM tokens, not passwords).
+	if cfg.Username != "" {
+		dsqlCfg.User = cfg.Username
+	}
+
 	// Apply OpenFGA pool settings
 	if cfg.MaxOpenConns != 0 {
 		dsqlCfg.MaxConns = int32(cfg.MaxOpenConns)

@@ -104,7 +104,7 @@ func RunMigrations(cfg MigrationConfig) error {
 			return err
 		}
 	case "dsql":
-		dsqlCfg, err := prepareDSQLMigration(uri, log)
+		dsqlCfg, err := prepareDSQLMigration(uri, cfg.Username, log)
 		if err != nil {
 			return err
 		}
